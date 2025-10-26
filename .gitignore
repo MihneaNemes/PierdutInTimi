@@ -33,6 +33,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Secțiunea Chei
+.env
+
 # Symbolication related
 app.*.symbols
 
