@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapillary Viewer</title>
+    <style id="mapillary-styles">MAPILLARY_CSS_CONTENT</style>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #mapillary-container {
+            width: 100%;
+            height: 100%;
+        }
+        #error-display {
+            display: none;
+            padding: 20px;
+            color: red;
+            font-family: monospace;
+            background: #fff;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+<div id="mapillary-container"></div>
+<div id="error-display"></div>
+
+<script id="mapillary-lib">
+    // Decode and execute base64-encoded Mapillary library
+    try {
+        var base64Code = 'MAPILLARY_JS_BASE64';
+        console.log('Base64 code length:', base64Code.length);
+
+        var decodedCode = atob(base64Code);
+        console.log('Decoded code length:', decodedCode.length);
+        console.log('Code starts with:', decodedCode.substring(0, 100));
+
+        // Execute using Function constructor in global scope
+        // This is the most reliable way to execute code globally
+        (new Function(decodedCode))();
+
+        console.log('Mapillary library executed successfully');
+        console.log('window.Mapillary:', typeof window.Mapillary);
+        console.log('window keys after exec:', Object.keys(window).filter(k => k.toLowerCase().includes('map')));
+    } catch (error) {
+        console.error('Error loading Mapillary library:', error);
+        console.error('Error stack:', error.stack);
+        document.getElementById('error-display').style.display = 'block';
+        document.getElementById('error-display').textContent = 'Load error: ' + error.message;
+    }
+</script>
+<script>
+    console.log('Initialization script running');
+    console.log('Number of script tags:', document.getElementsByTagName('script').length);
+    console.log('Mapillary available:', typeof window.Mapillary !== 'undefined');
+    console.log('mapillary (lowercase) available:', typeof window.mapillary !== 'undefined');
+
+    // The library exports as lowercase 'mapillary', not 'Mapillary'
+    var Mapillary = window.mapillary || window.Mapillary;
+
+    if (!Mapillary) {
+        console.error('ERROR: Mapillary library not loaded');
+
+        // Check the script content
+        var libScript = document.getElementById('mapillary-lib');
+        if (libScript) {
+            var scriptContent = libScript.textContent;
+            console.log('Script tag found, content length:', scriptContent.length);
+            console.log('Script starts with:', scriptContent.substring(0, 100));
+
+            if (scriptContent.includes('MAPILLARY_JS_BASE64')) {
+                console.error('PLACEHOLDER NOT REPLACED!');
+            }
+        } else {
+            console.error('Script tag not found!');
+        }
+
+        document.getElementById('error-display').style.display = 'block';
+        document.getElementById('error-display').textContent = 'ERROR: Mapillary library not defined';
+    } else {
+        try {
+            console.log('Creating Mapillary viewer...');
+            var viewer = new Mapillary.Viewer({
+                container: 'mapillary-container',
+                accessToken: 'MAP_ACCESS_TOKEN_PLACEHOLDER',
+                imageId: 'MAP_IMAGE_KEY_PLACEHOLDER',
+                component: {
+                    cover: false,
+                    sequence: {
+                        visible: true
+                    }
+                }
+            });
+
+            viewer.on('load', function() {
+                console.log('SUCCESS: Mapillary viewer loaded');
+            });
+
+            viewer.on('error', function(error) {
+                console.error('Mapillary viewer error:', error);
+                document.getElementById('error-display').style.display = 'block';
+                document.getElementById('error-display').textContent = 'Viewer error: ' + JSON.stringify(error);
+            });
+
+        } catch (error) {
+            console.error('Error initializing Mapillary:', error);
+            document.getElementById('error-display').style.display = 'block';
+            document.getElementById('error-display').textContent = 'Init error: ' + error.message + '\n' + error.stack;
+        }
+    }
+</script>
+</body>
+</html>

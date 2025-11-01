@@ -30,4 +30,6 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-    - assets/
+    - assets/mapillary_template.html
+    - assets/mapillary.js
+    - assets/mapillary.css
