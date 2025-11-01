@@ -4,12 +4,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-// Importul pentru setările Android este necesar, dar poate fi problematic.
-// Folosim importul standard din 'webview_flutter' pentru a evita erorile de tip
-// 'undefined_method' care apar din cauza conflictelor de versiune/implementare.
-// Asigură-te că rulezi 'flutter pub get' după ce adaugi pachetul în pubspec.yaml.
-
+import 'package:flutter/services.dart' show rootBundle; // NECESAR PENTRU A CITI ASSETS
 
 // MODIFICARE: main() devine async și încarcă .env
 void main() async {
@@ -26,7 +21,6 @@ class PierdutInTimiApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Pierdut în Timi',
-      // Am folosit direct GameScreen (nu ai nevoie de 'const' la GameScreen() aici)
       home: GameScreen(),
     );
   }
@@ -35,10 +29,8 @@ class PierdutInTimiApp extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class GameScreen extends StatefulWidget {
-  // Adaugat 'const' constructor pentru a respecta 'info:'
   const GameScreen({super.key});
 
-  // Schimbat tipul de retur la State<GameScreen> pentru a rezolva 'library_private_types_in_public_api'
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
@@ -46,24 +38,26 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   String? _currentMapillaryImageId;
 
-  // Citirea cheilor din .env cu denumiri corecte (lowerCamelCase)
+  // Citirea cheilor din .env (lowerCamelCase)
   final String mapillaryAccessToken = dotenv.env['MAPILLARY_ACCESS_TOKEN'] ?? 'MAPILLARY_TOKEN_ERROR';
   final String mapsApiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? 'GOOGLE_API_KEY_ERROR';
 
+  // Variabile pentru conținutul injectat
+  String _mapillaryCssContent = '';
+  String _mapillaryJsContent = '';
+
   late final WebViewController _webViewController;
+  bool _isInitialized = false; // Flag pentru a urmări inițializarea assets-urilor
 
   @override
   void initState() {
     super.initState();
-    _initializeWebViewController();
-    _startNewRound();
+    _initializeWebViewController(); // Inițializăm controllerul
+    _loadAssetsAndStartRound();    // Citim assets și pornim runda
   }
 
-  // Simplificarea inițializării WebViewController pentru a evita erorile de implementare
+  // Inițializarea WebViewController
   void _initializeWebViewController() {
-    // În versiunile recente, setările specifice platformei sunt adesea aplicate
-    // automat sau nu sunt necesare. Eliminăm apelurile problematice.
-
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -76,21 +70,43 @@ class _GameScreenState extends State<GameScreen> {
           },
         ),
       );
-
-    // Odată ce _webViewController este inițializat, poți încărca prima pagină.
   }
 
-  // Funcție pentru a apela API-ul Mapillary
-  void _startNewRound() async {
+  // NOU: Citirea fișierelor și pornirea rundei
+  void _loadAssetsAndStartRound() async {
+    try {
+      // 1. Citește conținutul CSS și JS din assets
+      final css = await rootBundle.loadString('assets/mapillary.css');
+      final js = await rootBundle.loadString('assets/mapillary.js');
+
+      // 2. Setează conținutul și marchează inițializarea ca terminată
+      setState(() {
+        _mapillaryCssContent = css;
+        _mapillaryJsContent = js;
+        _isInitialized = true; // Assets-urile sunt gata
+      });
+
+      // 3. Pornește prima rundă (apel API)
+      await _startNewRound();
+
+    } catch (e) {
+      debugPrint('Eroare la citirea asset-urilor locale (Verifică pubspec.yaml și calea): $e');
+      setState(() {
+        _isInitialized = true; // Marcăm ca inițializat, dar cu eroare
+        _currentMapillaryImageId = 'ASSET_LOAD_ERROR';
+      });
+    }
+  }
+
+  // Funcție pentru a apela API-ul Mapillary (Logica rămâne aceeași)
+  Future<void> _startNewRound() async {
     const String bbox = '21.17,45.72,21.28,45.79';
 
-    // ATENȚIE: Folosim numele variabilei corecte: mapillaryAccessToken
     final url = Uri.parse(
         'https://graph.mapillary.com/images?access_token=$mapillaryAccessToken&fields=id&bbox=$bbox&limit=100');
 
     try {
       final response = await http.get(url);
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final images = data['data'] as List;
@@ -98,7 +114,6 @@ class _GameScreenState extends State<GameScreen> {
         if (images.isNotEmpty) {
           final randomIndex = (DateTime.now().millisecondsSinceEpoch % images.length).toInt();
           final imageId = images[randomIndex]['id'];
-
           setState(() {
             _currentMapillaryImageId = imageId;
           });
@@ -106,63 +121,67 @@ class _GameScreenState extends State<GameScreen> {
           return;
         }
       }
-
       debugPrint('Eroare la apelul Mapillary API. Status Code: ${response.statusCode}');
       _currentMapillaryImageId = 'AICI_ESTE_EROARE_API_SAU_LIPSA_IMAGINI';
-
     } catch (e) {
       debugPrint('Eroare rețea sau decodare JSON: $e');
       _currentMapillaryImageId = 'AICI_ESTE_EROARE_DE_RETEA';
     }
-
     setState(() {});
   }
 
-  // Functia pentru a crea codul HTML/JS care va rula Mapillary Viewer
+  // NOU: Funcție care injectează CSS și JS ca string-uri
   String _buildMapillaryHtml(String imageKey, String accessToken) {
     return '''
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://unpkg.com/mapillary-js/dist/mapillary.min.js"></script>
-          <style>
-              body { margin: 0; }
-              #mly { width: 100vw; height: 100vh; }
-          </style>
-      </head>
-      <body>
-          <div id="mly"></div>
-          <script>
-              var mly = new Mapillary.Viewer({
-                  container: "mly",
-                  accessToken: "$accessToken",
-                  imageId: "$imageKey",
-                  // Opțiunile de navigație pot fi dezactivate pentru GeoGuessr-like
-                  component: {
-                    cover: false,
-                    attribution: false,
-                    zoom: false,
-                    bearing: false,
-                    compass: false,
-                  }
-              });
-              // Asigură-te că vizualizatorul se redimensionează corect
-              window.addEventListener("resize", () => mly.resize());
-          </script>
-      </body>
-      </html>
-    ''';
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <style>
+            ${_mapillaryCssContent}
+            body { margin: 0; }
+            #mly { width: 100vw; height: 100vh; }
+        </style>
+        
+    </head> 
+    <body>
+        <div id="mly"></div>
+        <script>
+            ${_mapillaryJsContent}
+            
+            // Codul tău de inițializare Mapillary Viewer (care rulează după codul injectat)
+            var mly = new Mapillary.Viewer({
+                accessToken: "$accessToken",
+                container: "mly", 
+                imageId: "$imageKey",
+                // Opțiuni...
+                component: {
+                  cover: false,
+                  attribution: false,
+                  zoom: false,
+                  bearing: false,
+                  compass: false,
+                }
+            });
+            window.addEventListener("resize", () => mly.resize());
+        </script>
+    </body>
+    </html>
+  ''';
   }
 
   @override
   Widget build(BuildContext context) {
-    // LOGICĂ CORECTATĂ: Încarcă HTML-ul ÎN BUILD, folosind mapillaryAccessToken
-    if (_currentMapillaryImageId != null) {
+    // Verifică dacă toate asset-urile și ID-ul Mapillary au fost încărcate
+    final bool isReady = _currentMapillaryImageId != null && _isInitialized;
+
+    // LOGICĂ CORECTATĂ: Încarcă HTML-ul doar dacă este gata
+    if (isReady) {
       _webViewController.loadHtmlString(
         _buildMapillaryHtml(
           _currentMapillaryImageId!,
-          mapillaryAccessToken, // ATENȚIE: Variabilă corectă
+          mapillaryAccessToken,
         ),
       );
     }
@@ -176,12 +195,10 @@ class _GameScreenState extends State<GameScreen> {
           // Partea de sus: Vizualizatorul Mapillary (WebView)
           Expanded(
             flex: 2,
-            child: _currentMapillaryImageId == null
-                ? const Center(
+            child: isReady
+                ? WebViewWidget(controller: _webViewController)
+                : const Center(
               child: CircularProgressIndicator(),
-            )
-                : WebViewWidget(
-              controller: _webViewController,
             ),
           ),
 
