@@ -8,10 +8,18 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  await Firebase.initializeApp();
+
+  // Configure Firebase Database with Europe region URL
+  FirebaseDatabase.instance.databaseURL =
+  'https://pierdutintimi-default-rtdb.europe-west1.firebasedatabase.app';
 
   LocationPermission permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
@@ -32,13 +40,358 @@ class PierdutInTimiApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const GameScreen(),
+      home: const StartScreen(),
     );
   }
 }
 
+// Start Screen
+class StartScreen extends StatefulWidget {
+  const StartScreen({super.key});
+
+  @override
+  State<StartScreen> createState() => _StartScreenState();
+}
+
+class _StartScreenState extends State<StartScreen> {
+  final TextEditingController _nameController = TextEditingController();
+  List<String> _previousNames = [];
+  String? _selectedName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreviousNames();
+  }
+
+  Future<void> _loadPreviousNames() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _previousNames = prefs.getStringList('player_names') ?? [];
+    });
+  }
+
+  Future<void> _savePlayerName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!_previousNames.contains(name)) {
+      _previousNames.add(name);
+      await prefs.setStringList('player_names', _previousNames);
+    }
+  }
+
+  void _startGame() async {
+    String playerName = _selectedName ?? _nameController.text.trim();
+
+    if (playerName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Te rog introdu un nume!')),
+      );
+      return;
+    }
+
+    await _savePlayerName(playerName);
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GameScreen(playerName: playerName),
+      ),
+    );
+  }
+
+  void _showHighScores() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const HighScoresScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.blue.shade300, Colors.blue.shade700],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
+                const Icon(
+                  Icons.map,
+                  size: 80,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Pierdut în Timi',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Card(
+                  elevation: 8,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Introdu numele tău:',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            labelText: 'Nume',
+                            prefixIcon: Icon(Icons.person),
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              if (value.isNotEmpty) {
+                                _selectedName = null;
+                              }
+                            });
+                          },
+                          onSubmitted: (_) => _startGame(),
+                        ),
+                        if (_previousNames.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'sau selectează un nume anterior:',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: _previousNames.map((name) {
+                              return ChoiceChip(
+                                label: Text(name),
+                                selected: _selectedName == name,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    _selectedName = selected ? name : null;
+                                    if (selected) {
+                                      _nameController.clear();
+                                    }
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _startGame,
+                    icon: const Icon(Icons.play_arrow, size: 28),
+                    label: const Text(
+                      'Începe Jocul',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _showHighScores,
+                    icon: const Icon(Icons.emoji_events, size: 28),
+                    label: const Text(
+                      'Scoruri Înalte',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+}
+
+// High Scores Screen
+class HighScoresScreen extends StatefulWidget {
+  const HighScoresScreen({super.key});
+
+  @override
+  State<HighScoresScreen> createState() => _HighScoresScreenState();
+}
+
+class _HighScoresScreenState extends State<HighScoresScreen> {
+  final DatabaseReference _scoresRef =
+  FirebaseDatabase.instance.ref('highscores');
+  List<Map<String, dynamic>> _highScores = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHighScores();
+  }
+
+  Future<void> _loadHighScores() async {
+    try {
+      final snapshot = await _scoresRef
+          .orderByChild('totalScore')
+          .limitToLast(5)
+          .get();
+
+      if (snapshot.exists) {
+        final List<Map<String, dynamic>> scores = [];
+        final data = snapshot.value as Map<dynamic, dynamic>;
+
+        data.forEach((key, value) {
+          scores.add({
+            'playerName': value['playerName'],
+            'totalScore': value['totalScore'],
+            'timestamp': value['timestamp'],
+          });
+        });
+
+        scores.sort((a, b) => b['totalScore'].compareTo(a['totalScore']));
+
+        setState(() {
+          _highScores = scores.take(5).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Eroare la încărcarea scorurilor: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scoruri Înalte'),
+        backgroundColor: Colors.orange,
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _highScores.isEmpty
+          ? const Center(
+        child: Text(
+          'Niciun scor încă!\nFii primul care joacă!',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 18),
+        ),
+      )
+          : ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _highScores.length,
+        itemBuilder: (context, index) {
+          final score = _highScores[index];
+          final rank = index + 1;
+
+          IconData medalIcon;
+          Color medalColor;
+
+          switch (rank) {
+            case 1:
+              medalIcon = Icons.looks_one;
+              medalColor = Colors.amber;
+              break;
+            case 2:
+              medalIcon = Icons.looks_two;
+              medalColor = Colors.grey;
+              break;
+            case 3:
+              medalIcon = Icons.looks_3;
+              medalColor = Colors.brown;
+              break;
+            default:
+              medalIcon = Icons.emoji_events;
+              medalColor = Colors.blue;
+          }
+
+          return Card(
+            elevation: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: Icon(
+                medalIcon,
+                size: 40,
+                color: medalColor,
+              ),
+              title: Text(
+                score['playerName'],
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              subtitle: Text(
+                'Scor Total: ${score['totalScore'].toStringAsFixed(0)} puncte',
+              ),
+              trailing: Text(
+                '#$rank',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: medalColor,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Game Screen with 5 rounds
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final String playerName;
+
+  const GameScreen({super.key, required this.playerName});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -58,6 +411,11 @@ class _GameScreenState extends State<GameScreen> {
   LatLng? _guessedLocation;
   double? _distanceInMeters;
   bool _showResults = false;
+
+  int _currentRound = 1;
+  final int _totalRounds = 5;
+  List<double> _roundScores = [];
+  double _totalScore = 0;
 
   final _random = Random();
 
@@ -101,6 +459,17 @@ class _GameScreenState extends State<GameScreen> {
         _currentMapillaryImageId = 'ASSET_LOAD_ERROR';
       });
     }
+  }
+
+  double _calculateScore(double distanceInMeters) {
+    // Score calculation: max 5000 points for 0m, decreasing with distance
+    // 0m = 5000 points, 5000m = 0 points
+    const maxDistance = 5000.0;
+    const maxScore = 5000.0;
+
+    if (distanceInMeters >= maxDistance) return 0;
+
+    return maxScore * (1 - (distanceInMeters / maxDistance));
   }
 
   Future<void> _startNewRound() async {
@@ -198,12 +567,7 @@ class _GameScreenState extends State<GameScreen> {
     String mapillaryJs = await rootBundle.loadString('assets/mapillary.js');
     String mapillaryCss = await rootBundle.loadString('assets/mapillary.css');
 
-    debugPrint('All assets loaded successfully');
-    debugPrint('Mapillary JS size: ${mapillaryJs.length} characters');
-    debugPrint('Mapillary CSS size: ${mapillaryCss.length} characters');
-
     String base64Js = base64.encode(utf8.encode(mapillaryJs));
-    debugPrint('Base64 JS size: ${base64Js.length} characters');
 
     String finalHtml = htmlTemplate
         .replaceAll('MAPILLARY_CSS_CONTENT', mapillaryCss)
@@ -211,13 +575,7 @@ class _GameScreenState extends State<GameScreen> {
         .replaceAll('MAP_ACCESS_TOKEN_PLACEHOLDER', accessToken)
         .replaceAll('MAP_IMAGE_KEY_PLACEHOLDER', imageKey);
 
-    debugPrint(
-        'Placeholders replaced, final HTML size: ${finalHtml.length} characters');
-    debugPrint('Loading HTML string');
-
     await _webViewController.loadHtmlString(finalHtml);
-
-    debugPrint('HTML string loaded into WebView');
   }
 
   void _handleMapTap(LatLng tappedPoint) {
@@ -229,6 +587,10 @@ class _GameScreenState extends State<GameScreen> {
       _actualLocation!.latitude,
       _actualLocation!.longitude,
     );
+
+    final roundScore = _calculateScore(distance);
+    _roundScores.add(roundScore);
+    _totalScore += roundScore;
 
     setState(() {
       _guessedLocation = tappedPoint;
@@ -247,6 +609,90 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Future<void> _saveGameScore() async {
+    try {
+      final DatabaseReference scoresRef =
+      FirebaseDatabase.instance.ref('highscores');
+
+      await scoresRef.push().set({
+        'playerName': widget.playerName,
+        'totalScore': _totalScore,
+        'timestamp': ServerValue.timestamp,
+        'rounds': _roundScores,
+      });
+
+      debugPrint('Scor salvat cu succes!');
+    } catch (e) {
+      debugPrint('Eroare la salvarea scorului: $e');
+    }
+  }
+
+  void _nextRound() {
+    if (_currentRound < _totalRounds) {
+      setState(() {
+        _currentRound++;
+      });
+      _startNewRound();
+    } else {
+      _saveGameScore();
+      _showGameOverDialog();
+    }
+  }
+
+  void _showGameOverDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Joc Terminat!'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Scor Total: ${_totalScore.toStringAsFixed(0)} puncte',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(_totalRounds, (index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'Runda ${index + 1}: ${_roundScores[index].toStringAsFixed(0)} puncte',
+                  ),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+              },
+              child: const Text('Înapoi la Meniu'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                setState(() {
+                  _currentRound = 1;
+                  _roundScores.clear();
+                  _totalScore = 0;
+                });
+                _startNewRound();
+              },
+              child: const Text('Joacă Din Nou'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isWebViewReady =
@@ -254,14 +700,20 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pierdut în Timi'),
+        title: Text('Runda $_currentRound/$_totalRounds - ${widget.playerName}'),
         actions: [
-          if (_showResults)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _startNewRound,
-              tooltip: 'Joacă din nou',
-            )
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: Text(
+                'Scor: ${_totalScore.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
       body: Column(
@@ -288,10 +740,9 @@ class _GameScreenState extends State<GameScreen> {
                                 color: Colors.white),
                             style: IconButton.styleFrom(
                               backgroundColor:
-                              Colors.black.withAlpha(77), // <-- 0.3 opacity
+                              Colors.black.withAlpha(77),
                               side: BorderSide(
-                                color:
-                                Colors.white.withAlpha(179), // <-- 0.7 opacity
+                                color: Colors.white.withAlpha(179),
                                 width: 1.5,
                               ),
                               padding: const EdgeInsets.all(12.0),
@@ -379,15 +830,60 @@ class _GameScreenState extends State<GameScreen> {
                   Align(
                     alignment: Alignment.bottomCenter,
                     child: Container(
-                      color: Colors.black.withAlpha(153), // <-- 0.6 opacity
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'Distanța: ${(_distanceInMeters! / 1000).toStringAsFixed(2)} km',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20.0,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: Colors.black.withAlpha(153),
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Distanța: ${(_distanceInMeters! / 1000).toStringAsFixed(2)} km',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Puncte: ${_roundScores.last.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.yellow,
+                                    fontSize: 14.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: _nextRound,
+                            icon: Icon(
+                              _currentRound < _totalRounds
+                                  ? Icons.arrow_forward
+                                  : Icons.done,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _currentRound < _totalRounds
+                                  ? 'Următoarea'
+                                  : 'Finalizează',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -395,15 +891,15 @@ class _GameScreenState extends State<GameScreen> {
                   Align(
                     alignment: Alignment.topCenter,
                     child: Container(
-                      color: Colors.black.withAlpha(128), // <-- 0.5 opacity
+                      color: Colors.black.withAlpha(128),
                       padding: const EdgeInsets.all(10.0),
                       margin: const EdgeInsets.all(10.0),
                       child: Text(
                         _actualLocation == null
                             ? 'Se încarcă...'
                             : 'Apasă pe hartă pentru a ghici!',
-                        style:
-                        const TextStyle(color: Colors.white, fontSize: 16),
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 16),
                       ),
                     ),
                   ),

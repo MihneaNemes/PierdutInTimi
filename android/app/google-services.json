@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "315182661190",
+    "project_id": "pierdutintimi",
+    "storage_bucket": "pierdutintimi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315182661190:android:74e527b26cd10607621447",
+        "android_client_info": {
+          "package_name": "com.example.guessr_timi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD94gvGK08CusuuccI5JlMM-eTvwvB3uMg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
