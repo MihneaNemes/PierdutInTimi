@@ -8,17 +8,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
-  await Firebase.initializeApp();
-
-  FirebaseDatabase.instance.databaseURL =
-  'https://pierdutintimi-default-rtdb.europe-west1.firebasedatabase.app';
 
   LocationPermission permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
@@ -34,7 +28,6 @@ class PierdutInTimiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // This is the Recent Apps title
       title: 'Pierdut în Timi',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -130,7 +123,6 @@ class _StartScreenState extends State<StartScreen> {
                   color: Colors.white,
                 ),
                 const SizedBox(height: 16),
-                // THIS IS THE TEXT FROM YOUR PICTURE
                 const Text(
                   'Pierdut în Timi',
                   style: TextStyle(
@@ -257,10 +249,9 @@ class HighScoresScreen extends StatefulWidget {
 }
 
 class _HighScoresScreenState extends State<HighScoresScreen> {
-  final DatabaseReference _scoresRef =
-  FirebaseDatabase.instance.ref('highscores');
   List<Map<String, dynamic>> _highScores = [];
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -269,38 +260,36 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
   }
 
   Future<void> _loadHighScores() async {
+    const backendUrl = 'http://10.0.2.2:3000'; // Android emulator
+    // Use 'http://localhost:3000' for iOS simulator
+    // Use your computer's IP for physical devices (e.g., 'http://192.168.1.100:3000')
+
     try {
-      final snapshot = await _scoresRef
-          .orderByChild('totalScore')
-          .limitToLast(5)
-          .get();
+      final response = await http.get(
+        Uri.parse('$backendUrl/api/highscores'),
+      );
 
-      if (snapshot.exists) {
-        final List<Map<String, dynamic>> scores = [];
-        final data = snapshot.value as Map<dynamic, dynamic>;
-
-        data.forEach((key, value) {
-          scores.add({
-            'playerName': value['playerName'],
-            'totalScore': value['totalScore'],
-            'timestamp': value['timestamp'],
-          });
-        });
-
-        scores.sort((a, b) => b['totalScore'].compareTo(a['totalScore']));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
 
         setState(() {
-          _highScores = scores.take(5).toList();
+          _highScores = data.map((score) => {
+            'playerName': score['playerName'],
+            'totalScore': score['totalScore'],
+            'timestamp': score['timestamp'],
+          }).toList();
           _isLoading = false;
         });
       } else {
         setState(() {
+          _errorMessage = 'Failed to load scores: ${response.statusCode}';
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error loading scores: $e');
       setState(() {
+        _errorMessage = 'Network error: $e';
         _isLoading = false;
       });
     }
@@ -315,6 +304,32 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _errorMessage = null;
+                });
+                _loadHighScores();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      )
           : _highScores.isEmpty
           ? const Center(
         child: Text(
@@ -399,8 +414,6 @@ class _GameScreenState extends State<GameScreen> {
   String? _currentMapillaryImageId;
   final String mapillaryAccessToken =
       dotenv.env['MAPILLARY_ACCESS_TOKEN'] ?? 'MAPILLARY_TOKEN_ERROR';
-  final String mapsApiKey =
-      dotenv.env['GOOGLE_MAPS_API_KEY'] ?? 'GOOGLE_API_KEY_ERROR';
   late final WebViewController _webViewController;
   bool _isInitialized = false;
 
@@ -610,18 +623,26 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _saveGameScore() async {
+    const backendUrl = 'http://10.0.2.2:3000'; // Android emulator
+    // Use 'http://localhost:3000' for iOS simulator
+    // Use your computer's IP for physical devices
+
     try {
-      final DatabaseReference scoresRef =
-      FirebaseDatabase.instance.ref('highscores');
+      final response = await http.post(
+        Uri.parse('$backendUrl/api/highscores'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'playerName': widget.playerName,
+          'totalScore': _totalScore,
+          'rounds': _roundScores,
+        }),
+      );
 
-      await scoresRef.push().set({
-        'playerName': widget.playerName,
-        'totalScore': _totalScore,
-        'timestamp': ServerValue.timestamp,
-        'rounds': _roundScores,
-      });
-
-      debugPrint('Score saved successfully!');
+      if (response.statusCode == 201) {
+        debugPrint('Score saved successfully!');
+      } else {
+        debugPrint('Error saving score: ${response.statusCode}');
+      }
     } catch (e) {
       debugPrint('Error saving score: $e');
     }
@@ -913,8 +934,10 @@ class _GameScreenState extends State<GameScreen> {
                         IconButton.filled(
                           icon: const Icon(Icons.add),
                           onPressed: () {
-                            _mapController.move(_mapController.camera.center,
-                                _mapController.camera.zoom + 1);
+                            _mapController.move(
+                              _mapController.camera.center,
+                              _mapController.camera.zoom + 1,
+                            );
                           },
                           tooltip: 'Zoom in',
                         ),
@@ -922,8 +945,10 @@ class _GameScreenState extends State<GameScreen> {
                         IconButton.filled(
                           icon: const Icon(Icons.remove),
                           onPressed: () {
-                            _mapController.move(_mapController.camera.center,
-                                _mapController.camera.zoom - 1);
+                            _mapController.move(
+                              _mapController.camera.center,
+                              _mapController.camera.zoom - 1,
+                            );
                           },
                           tooltip: 'Zoom out',
                         ),
