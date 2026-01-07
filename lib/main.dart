@@ -17,7 +17,6 @@ void main() async {
   await dotenv.load(fileName: ".env");
   await Firebase.initializeApp();
 
-  // Configure Firebase Database with Europe region URL
   FirebaseDatabase.instance.databaseURL =
   'https://pierdutintimi-default-rtdb.europe-west1.firebasedatabase.app';
 
@@ -35,6 +34,7 @@ class PierdutInTimiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // This is the Recent Apps title
       title: 'Pierdut în Timi',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -45,7 +45,6 @@ class PierdutInTimiApp extends StatelessWidget {
   }
 }
 
-// Start Screen
 class StartScreen extends StatefulWidget {
   const StartScreen({super.key});
 
@@ -84,7 +83,7 @@ class _StartScreenState extends State<StartScreen> {
 
     if (playerName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Te rog introdu un nume!')),
+        const SnackBar(content: Text('Please enter a name!')),
       );
       return;
     }
@@ -131,6 +130,7 @@ class _StartScreenState extends State<StartScreen> {
                   color: Colors.white,
                 ),
                 const SizedBox(height: 16),
+                // THIS IS THE TEXT FROM YOUR PICTURE
                 const Text(
                   'Pierdut în Timi',
                   style: TextStyle(
@@ -147,7 +147,7 @@ class _StartScreenState extends State<StartScreen> {
                     child: Column(
                       children: [
                         const Text(
-                          'Introdu numele tău:',
+                          'Enter your name:',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -158,7 +158,7 @@ class _StartScreenState extends State<StartScreen> {
                           controller: _nameController,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            labelText: 'Nume',
+                            labelText: 'Name',
                             prefixIcon: Icon(Icons.person),
                           ),
                           onChanged: (value) {
@@ -173,7 +173,7 @@ class _StartScreenState extends State<StartScreen> {
                         if (_previousNames.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           const Text(
-                            'sau selectează un nume anterior:',
+                            'or select a previous name:',
                             style: TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 8),
@@ -207,7 +207,7 @@ class _StartScreenState extends State<StartScreen> {
                     onPressed: _startGame,
                     icon: const Icon(Icons.play_arrow, size: 28),
                     label: const Text(
-                      'Începe Jocul',
+                      'Start Game',
                       style: TextStyle(fontSize: 18),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -224,7 +224,7 @@ class _StartScreenState extends State<StartScreen> {
                     onPressed: _showHighScores,
                     icon: const Icon(Icons.emoji_events, size: 28),
                     label: const Text(
-                      'Scoruri Înalte',
+                      'High Scores',
                       style: TextStyle(fontSize: 18),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -249,7 +249,6 @@ class _StartScreenState extends State<StartScreen> {
   }
 }
 
-// High Scores Screen
 class HighScoresScreen extends StatefulWidget {
   const HighScoresScreen({super.key});
 
@@ -300,7 +299,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Eroare la încărcarea scorurilor: $e');
+      debugPrint('Error loading scores: $e');
       setState(() {
         _isLoading = false;
       });
@@ -311,7 +310,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scoruri Înalte'),
+        title: const Text('High Scores'),
         backgroundColor: Colors.orange,
       ),
       body: _isLoading
@@ -319,7 +318,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
           : _highScores.isEmpty
           ? const Center(
         child: Text(
-          'Niciun scor încă!\nFii primul care joacă!',
+          'No scores yet!\nBe the first to play!',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 18),
         ),
@@ -369,7 +368,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
                 ),
               ),
               subtitle: Text(
-                'Scor Total: ${score['totalScore'].toStringAsFixed(0)} puncte',
+                'Total Score: ${score['totalScore'].toStringAsFixed(0)} points',
               ),
               trailing: Text(
                 '#$rank',
@@ -387,7 +386,6 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
   }
 }
 
-// Game Screen with 5 rounds
 class GameScreen extends StatefulWidget {
   final String playerName;
 
@@ -434,7 +432,7 @@ class _GameScreenState extends State<GameScreen> {
         NavigationDelegate(
           onWebResourceError: (WebResourceError error) {
             debugPrint(
-                'Eroare WebView: ${error.description}, URL: ${error.url}');
+                'WebView Error: ${error.description}, URL: ${error.url}');
           },
           onPageFinished: (String url) {
             debugPrint('WebView Page Finished Loading: $url');
@@ -453,7 +451,7 @@ class _GameScreenState extends State<GameScreen> {
       });
       await _startNewRound();
     } catch (e) {
-      debugPrint('Eroare la pornirea rundei: $e');
+      debugPrint('Error starting round: $e');
       setState(() {
         _isInitialized = true;
         _currentMapillaryImageId = 'ASSET_LOAD_ERROR';
@@ -462,10 +460,12 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   double _calculateScore(double distanceInMeters) {
-    // Score calculation: max 5000 points for 0m, decreasing with distance
-    // 0m = 5000 points, 5000m = 0 points
     const maxDistance = 5000.0;
     const maxScore = 5000.0;
+
+    if (distanceInMeters <= 20) {
+      return maxScore;
+    }
 
     if (distanceInMeters >= maxDistance) return 0;
 
@@ -523,20 +523,20 @@ class _GameScreenState extends State<GameScreen> {
             _currentMapillaryImageId = imageId;
             _actualLocation = LatLng(latitude, longitude);
           });
-          debugPrint('Noua imagine Mapillary ID: $imageId');
-          debugPrint('Locația actuală: $_actualLocation');
+          debugPrint('New Mapillary Image ID: $imageId');
+          debugPrint('Actual Location: $_actualLocation');
           return;
         } else {
-          debugPrint('Cutia aleatorie era goală. Se reîncearcă...');
+          debugPrint('Random box was empty. Retrying...');
           _startNewRound();
           return;
         }
       }
       debugPrint(
-          'Eroare la apelul Mapillary API. Status Code: ${response.statusCode}');
+          'Error calling Mapillary API. Status Code: ${response.statusCode}');
       _currentMapillaryImageId = 'AICI_ESTE_EROARE_API_SAU_LIPSA_IMAGINI';
     } catch (e) {
-      debugPrint('Eroare rețea sau decodare JSON: $e');
+      debugPrint('Network error or JSON decoding error: $e');
       _currentMapillaryImageId = 'AICI_ESTE_EROARE_DE_RETEA';
     }
     setState(() {});
@@ -621,9 +621,9 @@ class _GameScreenState extends State<GameScreen> {
         'rounds': _roundScores,
       });
 
-      debugPrint('Scor salvat cu succes!');
+      debugPrint('Score saved successfully!');
     } catch (e) {
-      debugPrint('Eroare la salvarea scorului: $e');
+      debugPrint('Error saving score: $e');
     }
   }
 
@@ -645,12 +645,12 @@ class _GameScreenState extends State<GameScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Joc Terminat!'),
+          title: const Text('Game Over!'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Scor Total: ${_totalScore.toStringAsFixed(0)} puncte',
+                'Total Score: ${_totalScore.toStringAsFixed(0)} points',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -661,7 +661,7 @@ class _GameScreenState extends State<GameScreen> {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
-                    'Runda ${index + 1}: ${_roundScores[index].toStringAsFixed(0)} puncte',
+                    'Round ${index + 1}: ${_roundScores[index].toStringAsFixed(0)} points',
                   ),
                 );
               }),
@@ -673,7 +673,7 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.of(context).pop();
                 Navigator.of(context).pop();
               },
-              child: const Text('Înapoi la Meniu'),
+              child: const Text('Back to Menu'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -685,7 +685,7 @@ class _GameScreenState extends State<GameScreen> {
                 });
                 _startNewRound();
               },
-              child: const Text('Joacă Din Nou'),
+              child: const Text('Play Again'),
             ),
           ],
         );
@@ -700,13 +700,13 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Runda $_currentRound/$_totalRounds - ${widget.playerName}'),
+        title: Text('Round $_currentRound/$_totalRounds - ${widget.playerName}'),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Center(
               child: Text(
-                'Scor: ${_totalScore.toStringAsFixed(0)}',
+                'Score: ${_totalScore.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -735,7 +735,7 @@ class _GameScreenState extends State<GameScreen> {
                           padding: const EdgeInsets.all(16.0),
                           child: IconButton(
                             onPressed: _resetStreetViewPosition,
-                            tooltip: 'Resetează la pornire',
+                            tooltip: 'Reset to start',
                             icon: const Icon(Icons.flag,
                                 color: Colors.white),
                             style: IconButton.styleFrom(
@@ -753,7 +753,7 @@ class _GameScreenState extends State<GameScreen> {
                     ],
                   );
                 } else if (snapshot.hasError) {
-                  return Center(child: Text('Eroare: ${snapshot.error}'));
+                  return Center(child: Text('Error: ${snapshot.error}'));
                 } else {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -788,7 +788,7 @@ class _GameScreenState extends State<GameScreen> {
                             height: 80.0,
                             point: _guessedLocation!,
                             child: const Tooltip(
-                              message: 'Ghiciul tău',
+                              message: 'Your guess',
                               child: Icon(
                                 Icons.location_pin,
                                 color: Colors.blue,
@@ -802,7 +802,7 @@ class _GameScreenState extends State<GameScreen> {
                             height: 80.0,
                             point: _actualLocation!,
                             child: const Tooltip(
-                              message: 'Locația corectă',
+                              message: 'Correct location',
                               child: Icon(
                                 Icons.flag,
                                 color: Colors.green,
@@ -841,7 +841,7 @@ class _GameScreenState extends State<GameScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Distanța: ${(_distanceInMeters! / 1000).toStringAsFixed(2)} km',
+                                  'Distance: ${(_distanceInMeters! / 1000).toStringAsFixed(2)} km',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16.0,
@@ -849,7 +849,7 @@ class _GameScreenState extends State<GameScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Puncte: ${_roundScores.last.toStringAsFixed(0)}',
+                                  'Points: ${_roundScores.last.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     color: Colors.yellow,
                                     fontSize: 14.0,
@@ -870,8 +870,8 @@ class _GameScreenState extends State<GameScreen> {
                             ),
                             label: Text(
                               _currentRound < _totalRounds
-                                  ? 'Următoarea'
-                                  : 'Finalizează',
+                                  ? 'Next'
+                                  : 'Finish',
                               style: const TextStyle(fontSize: 14),
                             ),
                             style: ElevatedButton.styleFrom(
@@ -896,10 +896,10 @@ class _GameScreenState extends State<GameScreen> {
                       margin: const EdgeInsets.all(10.0),
                       child: Text(
                         _actualLocation == null
-                            ? 'Se încarcă...'
-                            : 'Apasă pe hartă pentru a ghici!',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 16),
+                            ? 'Loading...'
+                            : 'Tap on the map to guess!',
+                        style:
+                        const TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ),
                   ),
@@ -916,7 +916,7 @@ class _GameScreenState extends State<GameScreen> {
                             _mapController.move(_mapController.camera.center,
                                 _mapController.camera.zoom + 1);
                           },
-                          tooltip: 'Mărește',
+                          tooltip: 'Zoom in',
                         ),
                         const SizedBox(height: 8),
                         IconButton.filled(
@@ -925,7 +925,7 @@ class _GameScreenState extends State<GameScreen> {
                             _mapController.move(_mapController.camera.center,
                                 _mapController.camera.zoom - 1);
                           },
-                          tooltip: 'Micșorează',
+                          tooltip: 'Zoom out',
                         ),
                       ],
                     ),
